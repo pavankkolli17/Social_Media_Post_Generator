@@ -162,13 +162,14 @@ if generate_clicked:
             try:
                 # Create client based on anthropic library version
                 try:
+                    # For newer versions of the SDK (v0.6.0+)
                     client = anthropic.Anthropic(api_key=API_KEY)
-                except TypeError as e:
-                    if "unexpected keyword argument" in str(e):
-                        # Fallback for older versions that don't accept certain parameters
-                        client = anthropic.Client(api_key=API_KEY)
-                    else:
-                        raise
+                    use_newer_api = True
+                except Exception as e:
+                    # For older versions or if there's an issue with the newer initialization
+                    st.warning(f"Using fallback client initialization: {str(e)}")
+                    client = anthropic.Client(api_key=API_KEY)
+                    use_newer_api = False
                 
                 # Prepare additional options for the prompt
                 additional_instructions = []
@@ -204,9 +205,9 @@ if generate_clicked:
                 Make the post compelling, authentic, and optimized for engagement on {platform}.
                 """
                 
-                # Generate the content - handling different API versions
-                try:
-                    # Try newer API version first (Anthropic 0.6.0+)
+                # Generate the content based on API version
+                if use_newer_api:
+                    # Newer API version (Anthropic 0.6.0+)
                     response = client.messages.create(
                         model="claude-3-opus-20240229",
                         max_tokens=1000,
@@ -217,19 +218,15 @@ if generate_clicked:
                         ]
                     )
                     content = response.content[0].text
-                except (AttributeError, TypeError) as e:
-                    # Fall back to older API version
-                    try:
-                        response = client.completion(
-                            prompt=f"\n\nHuman: {prompt}\n\nAssistant:",
-                            model="claude-3-opus-20240229",
-                            max_tokens_to_sample=1000,
-                            temperature=0.7,
-                        )
-                        content = response.completion
-                    except Exception as inner_e:
-                        st.error(f"Error with older API version: {str(inner_e)}")
-                        raise
+                else:
+                    # Older API version
+                    response = client.completion(
+                        prompt=f"\n\nHuman: {prompt}\n\nAssistant:",
+                        model="claude-3-opus-20240229",
+                        max_tokens_to_sample=1000,
+                        temperature=0.7,
+                    )
+                    content = response.completion
                 
                 # Extract and parse the JSON response
                 try:
