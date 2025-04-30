@@ -7,6 +7,11 @@ from datetime import datetime
 # Embedded API key - already configured in the app
 API_KEY = "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"
 
+# Check anthropic library version
+import pkg_resources
+anthropic_version = pkg_resources.get_distribution("anthropic").version
+st.sidebar.markdown(f"Using Anthropic SDK version: {anthropic_version}")
+
 # Page configuration
 st.set_page_config(
     page_title="Social Media Post Generator",
@@ -155,7 +160,15 @@ if generate_clicked:
     else:
         with st.spinner("Generating your perfect post..."):
             try:
-                client = anthropic.Anthropic(api_key=API_KEY)
+                # Create client based on anthropic library version
+                try:
+                    client = anthropic.Anthropic(api_key=API_KEY)
+                except TypeError as e:
+                    if "unexpected keyword argument" in str(e):
+                        # Fallback for older versions that don't accept certain parameters
+                        client = anthropic.Client(api_key=API_KEY)
+                    else:
+                        raise
                 
                 # Prepare additional options for the prompt
                 additional_instructions = []
@@ -191,21 +204,35 @@ if generate_clicked:
                 Make the post compelling, authentic, and optimized for engagement on {platform}.
                 """
                 
-                # Generate the content
-                response = client.messages.create(
-                    model="claude-3-opus-20240229",
-                    max_tokens=1000,
-                    temperature=0.7,
-                    system="You are an expert social media copywriter who creates engaging platform-specific content.",
-                    messages=[
-                        {"role": "user", "content": prompt}
-                    ]
-                )
+                # Generate the content - handling different API versions
+                try:
+                    # Try newer API version first (Anthropic 0.6.0+)
+                    response = client.messages.create(
+                        model="claude-3-opus-20240229",
+                        max_tokens=1000,
+                        temperature=0.7,
+                        system="You are an expert social media copywriter who creates engaging platform-specific content.",
+                        messages=[
+                            {"role": "user", "content": prompt}
+                        ]
+                    )
+                    content = response.content[0].text
+                except (AttributeError, TypeError) as e:
+                    # Fall back to older API version
+                    try:
+                        response = client.completion(
+                            prompt=f"\n\nHuman: {prompt}\n\nAssistant:",
+                            model="claude-3-opus-20240229",
+                            max_tokens_to_sample=1000,
+                            temperature=0.7,
+                        )
+                        content = response.completion
+                    except Exception as inner_e:
+                        st.error(f"Error with older API version: {str(inner_e)}")
+                        raise
                 
                 # Extract and parse the JSON response
                 try:
-                    # Find JSON content in the response
-                    content = response.content[0].text
                     # Extract JSON block if needed
                     if "```json" in content:
                         json_content = content.split("```json")[1].split("```")[0].strip()
