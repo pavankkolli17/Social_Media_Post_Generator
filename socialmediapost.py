@@ -6,14 +6,6 @@ from datetime import datetime
 # Embedded API key - already configured in the app
 API_KEY = "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"
 
-# Check anthropic library version
-import pkg_resources
-try:
-    anthropic_version = pkg_resources.get_distribution("anthropic").version
-    st.sidebar.markdown(f"Using Anthropic SDK version: {anthropic_version}")
-except:
-    st.sidebar.markdown("Could not determine Anthropic SDK version")
-
 # First try importing the specific client we need
 try:
     from anthropic import Anthropic
