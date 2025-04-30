@@ -1,5 +1,4 @@
 import streamlit as st
-import anthropic
 import json
 import base64
 from datetime import datetime
@@ -9,8 +8,29 @@ API_KEY = "sk-ant-api03-C93q3NuqHgvdaUAoxYnpXghAnju_4X6Hm2kAjXG_25OUhglgUQsFLXj3
 
 # Check anthropic library version
 import pkg_resources
-anthropic_version = pkg_resources.get_distribution("anthropic").version
-st.sidebar.markdown(f"Using Anthropic SDK version: {anthropic_version}")
+try:
+    anthropic_version = pkg_resources.get_distribution("anthropic").version
+    st.sidebar.markdown(f"Using Anthropic SDK version: {anthropic_version}")
+except:
+    st.sidebar.markdown("Could not determine Anthropic SDK version")
+
+# First try importing the specific client we need
+try:
+    from anthropic import Anthropic
+    # For newer versions (0.6.0+)
+    def get_client():
+        return Anthropic(api_key=API_KEY)
+    st.sidebar.markdown("Using new Anthropic client")
+except ImportError:
+    try:
+        # For older versions
+        from anthropic import Client
+        def get_client():
+            return Client(api_key=API_KEY)
+        st.sidebar.markdown("Using legacy Anthropic client")
+    except ImportError:
+        st.error("Could not import Anthropic client. Please check your installation.")
+        st.stop()
 
 # Page configuration
 st.set_page_config(
@@ -160,16 +180,8 @@ if generate_clicked:
     else:
         with st.spinner("Generating your perfect post..."):
             try:
-                # Create client based on anthropic library version
-                try:
-                    # For newer versions of the SDK (v0.6.0+)
-                    client = anthropic.Anthropic(api_key=API_KEY)
-                    use_newer_api = True
-                except Exception as e:
-                    # For older versions or if there's an issue with the newer initialization
-                    st.warning(f"Using fallback client initialization: {str(e)}")
-                    client = anthropic.Client(api_key=API_KEY)
-                    use_newer_api = False
+                # Get client based on available API
+                client = get_client()
                 
                 # Prepare additional options for the prompt
                 additional_instructions = []
@@ -205,9 +217,11 @@ if generate_clicked:
                 Make the post compelling, authentic, and optimized for engagement on {platform}.
                 """
                 
-                # Generate the content based on API version
-                if use_newer_api:
-                    # Newer API version (Anthropic 0.6.0+)
+                # Generate content based on available API
+                is_newer_api = hasattr(client, 'messages')
+                
+                if is_newer_api:
+                    # For newer Anthropic SDK
                     response = client.messages.create(
                         model="claude-3-opus-20240229",
                         max_tokens=1000,
@@ -219,7 +233,7 @@ if generate_clicked:
                     )
                     content = response.content[0].text
                 else:
-                    # Older API version
+                    # For older Anthropic SDK
                     response = client.completion(
                         prompt=f"\n\nHuman: {prompt}\n\nAssistant:",
                         model="claude-3-opus-20240229",
@@ -250,6 +264,8 @@ if generate_clicked:
             
             except Exception as e:
                 st.error(f"Error generating content: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())  # Show detailed error for debugging
 
 # Display generated content
 if st.session_state.generated_post:
