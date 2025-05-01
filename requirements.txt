@@ -1,3 +1,7 @@
-streamlit>=1.22.0
-anthropic==0.5.0
-setuptools>=42.0.0
+streamlit==1.31.0
+pandas==2.2.0
+anthropic==0.16.0
+xlsxwriter==3.1.9
+Pillow==10.1.0
+protobuf==4.25.1
+python-dotenv==1.0.0
